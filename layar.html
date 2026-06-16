@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Facing Display - Toko Faster</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@700&display=swap');
+        .font-harga { font-family: 'Roboto Mono', monospace; }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col overflow-hidden text-gray-800">
+
+    <div id="connectionBanner" class="bg-yellow-400 text-yellow-900 text-center py-1 text-xs font-bold transition-all duration-300 z-30">
+        ⏳ Mencari koneksi dengan Komputer Kasir...
+    </div>
+
+    <div id="mainDisplay" class="flex-1 flex flex-col h-full overflow-hidden">
+        
+        <header class="bg-blue-600 text-white p-3 md:p-4 flex justify-between items-center shadow-lg sticky top-0 z-20">
+            <div class="flex items-center gap-3">
+                <img src="logo.png" alt="Logo" class="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-white shadow bg-white p-1" onerror="this.style.display='none'">
+                <div>
+                    <h1 class="text-xl md:text-2xl font-extrabold tracking-tight">Toko Faster</h1>
+                    <p class="text-xs text-blue-200 -mt-1 hidden md:block">Melayani dengan cepat dan tepat!</p>
+                </div>
+            </div>
+            
+            <div class="bg-blue-700/50 px-4 py-1.5 md:py-2 rounded-xl border border-blue-400 text-right shadow-inner flex flex-col justify-center">
+                <p class="text-[10px] md:text-xs font-semibold text-blue-200 uppercase tracking-widest -mb-1">TOTAL</p>
+                <h2 class="text-2xl md:text-4xl font-black font-harga tracking-tighter items-baseline flex gap-1 whitespace-nowrap">
+                    <span class="text-lg md:text-xl font-bold">Rp</span>
+                    <span id="displayGrandTotal">0</span>
+                </h2>
+            </div>
+        </header>
+
+        <main class="flex-1 flex flex-col bg-white overflow-hidden">
+            <div class="bg-gray-100 p-2 md:p-3 border-b border-gray-200 grid grid-cols-12 gap-1 md:gap-2 font-bold text-gray-600 uppercase text-[10px] md:text-xs tracking-wider sticky top-0 z-10">
+                <div class="col-span-1 text-center">No</div>
+                <div class="col-span-5 md:col-span-6">Nama Barang</div>
+                <div class="col-span-2 text-center">Qty</div>
+                <div class="col-span-4 md:col-span-3 text-right pr-2">Subtotal</div>
+            </div>
+
+            <div id="keranjangPelanggan" class="flex-1 overflow-y-auto custom-scrollbar p-1.5 md:p-2">
+                <div class="h-full flex flex-col items-center justify-center text-gray-400 py-8">
+                    <svg class="w-16 h-16 md:w-20 md:h-20 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    <p class="text-lg md:text-xl font-medium">Keranjang masih kosong</p>
+                    <p class="text-xs md:text-sm text-center">Silakan tunggu kasir memindai barang belanjaan Anda.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const peer = new Peer(); 
+        const idKasir = 'kasir-tokofaster-01'; 
+        let conn = null;
+
+        const banner = document.getElementById('connectionBanner');
+        const keranjangUI = document.getElementById('keranjangPelanggan');
+        const grandTotalUI = document.getElementById('displayGrandTotal');
+
+        function sambungkanKeKasir() {
+            banner.className = "bg-yellow-400 text-yellow-900 text-center py-1 text-xs font-bold transition-all duration-300";
+            banner.innerText = "⏳ Menyambungkan ke Komputer Kasir...";
+
+            conn = peer.connect(idKasir);
+
+            conn.on('open', () => {
+                banner.className = "bg-green-500 text-white text-center py-0.5 text-[10px] font-bold transition-all duration-300";
+                banner.innerText = "🟢 Real-Time Customer Facing Display Activated";
+                setTimeout(() => { banner.style.transform = "translateY(-100%)"; banner.style.height = "0"; banner.style.padding = "0"; }, 2500);
+            });
+
+            conn.on('data', (data) => {
+                // DETEKSI PROTEKSI ALERT: Jika ditolak kasir karena sudah ada device lain bray
+                if (data.error === 'ALREADY_CONNECTED') {
+                    peer.disconnect(); // Putuskan koneksi dari broker server
+                    document.body.className = "bg-red-900 h-screen flex items-center justify-center text-white p-6 text-center";
+                    document.body.innerHTML = `
+                        <div class="max-w-md p-8 bg-black/30 rounded-3xl border-2 border-red-500/50 backdrop-blur-md shadow-2xl">
+                            <span class="text-6xl block mb-4">⚠️</span>
+                            <h1 class="text-2xl font-black uppercase tracking-wider text-red-300 mb-2">Akses Monitor Ditolak</h1>
+                            <p class="text-sm text-red-100 leading-relaxed">
+                                Monitor pembeli bray sudah dibuka di perangkat atau tab lain. Untuk menjaga kestabilan data, hanya diperbolehkan <strong>1 device aktif</strong> saja.
+                            </p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                renderKeranjang(data.items);
+                grandTotalUI.innerText = data.grandTotal;
+            });
+
+            conn.on('close', () => {
+                // Balikin layout banner jika terputus normal
+                if (document.getElementById('mainDisplay')) {
+                    banner.style.transform = "translateY(0)"; banner.style.height = "auto"; banner.style.padding = "0.25rem 0";
+                    banner.className = "bg-red-500 text-white text-center py-1 text-xs font-bold transition-all duration-300";
+                    banner.innerText = "🔴 Komputer Kasir Terputus. Menunggu kasir membuka ulang...";
+                    setTimeout(sambungkanKeKasir, 5000);
+                }
+            });
+        }
+
+        peer.on('open', (id) => { sambungkanKeKasir(); });
+
+        peer.on('error', (err) => {
+            if(err.type === 'peer-unavailable') {
+                if (document.getElementById('mainDisplay')) {
+                    banner.className = "bg-red-500 text-white text-center py-1 text-xs font-bold transition-all duration-300";
+                    banner.innerText = "🔴 Kasir Terputus/Belum Buka. Memindai ulang...";
+                    setTimeout(sambungkanKeKasir, 5000);
+                }
+            }
+        });
+
+        function renderKeranjang(items) {
+            if (items.length === 0) {
+                keranjangUI.innerHTML = `
+                <div class="h-full flex flex-col items-center justify-center text-gray-400 py-8">
+                    <svg class="w-16 h-16 md:w-20 md:h-20 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    <p class="text-lg md:text-xl font-medium">Keranjang bersih</p>
+                    <p class="text-xs md:text-sm text-center">Siap melayani transaksi berikutnya.</p>
+                </div>`;
+                return;
+            }
+
+            let html = '';
+            items.slice().reverse().forEach((item, revIndex) => {
+                let actualNo = items.length - revIndex; 
+                let bgRow = actualNo % 2 === 0 ? 'bg-gray-50' : 'bg-white';
+                
+                html += `
+                <div class="grid grid-cols-12 gap-1 md:gap-2 items-center p-2 border-b border-gray-100 ${bgRow} rounded-lg mb-1">
+                    <div class="col-span-1 text-center font-bold text-gray-400 text-xs md:text-sm">${actualNo}</div>
+                    <div class="col-span-5 md:col-span-6">
+                        <p class="font-bold text-gray-800 text-xs md:text-lg line-clamp-2 md:line-clamp-1 leading-tight">${item.nama}</p>
+                        <p class="text-[9px] md:text-xs text-gray-500 mt-0.5 whitespace-nowrap">@ Rp ${item.harga.toLocaleString('id-ID')}</p>
+                    </div>
+                    <div class="col-span-2 text-center">
+                        <span class="inline-block bg-blue-100 text-blue-800 text-[10px] md:text-base font-bold px-1.5 md:px-2.5 py-0.5 rounded md:rounded-lg whitespace-nowrap">${item.qty} ${item.unit}</span>
+                    </div>
+                    <div class="col-span-4 md:col-span-3 text-right pr-1 md:pr-2">
+                        <p class="text-sm md:text-2xl font-black font-harga text-gray-800 leading-none whitespace-nowrap">Rp ${item.subtotal.toLocaleString('id-ID')}</p>
+                    </div>
+                </div>`;
+            });
+            keranjangUI.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

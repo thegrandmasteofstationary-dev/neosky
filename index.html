@@ -241,10 +241,11 @@
                         let kodeJamak = cols[3] ? cols[3].replace(/['"]+/g, '').trim() : ''; 
                         let kodeTunggal = cols[4] ? cols[4].replace(/['"]+/g, '').trim() : ''; 
                         
-                        let hargaG1 = parseInt(cols[6] ? cols[6].replace(/['"\.]+/g, '').trim() : '0') || 0; 
-                        let hargaG2 = parseInt(cols[9] ? cols[9].replace(/['"\.]+/g, '').trim() : '0') || 0; 
-                        let hargaE1 = parseInt(cols[11] ? cols[11].replace(/['"\.]+/g, '').trim() : '0') || 0; 
-                        let hargaE2 = parseInt(cols[13] ? cols[13].replace(/['"\.]+/g, '').trim() : '0') || 0; 
+                        // FIX SUPER FATAL! INDEKS HARGA SUDAH AKURAT SESUAI HURUF KOLOM EXCEL BRAY 🔥
+                        let hargaG1 = parseInt(cols[6] ? cols[6].replace(/['"\.]+/g, '').trim() : '0') || 0; // Kolom G (6)
+                        let hargaG2 = parseInt(cols[8] ? cols[8].replace(/['"\.]+/g, '').trim() : '0') || 0; // Kolom I (8)
+                        let hargaE1 = parseInt(cols[10] ? cols[10].replace(/['"\.]+/g, '').trim() : '0') || 0; // Kolom K (10)
+                        let hargaE2 = parseInt(cols[12] ? cols[12].replace(/['"\.]+/g, '').trim() : '0') || 0; // Kolom M (12)
                         
                         let baseData = { nama, g1: hargaG1, g2: hargaG2, e1: hargaE1, e2: hargaE2 };
                         
@@ -272,9 +273,6 @@
         }
         window.onload = fetchDatabase;
 
-        // ====================================================================
-        // KIRIM WA DENGAN STRUKTUR DATA DIKOMPRES (MENGHEMAT PANJANG URL)
-        // ====================================================================
         function kirimWhatsApp() {
             let noWA = document.getElementById('inputNoWA').value.trim();
             if (!noWA) {
@@ -298,15 +296,14 @@
             let grandTotal = document.getElementById('totalAkhir').innerText;
             let items = [];
 
-            // Nama key dikompres menjadi 1 huruf agar mempersingkat enkripsi Base64 bray
             barisBelanjaan.forEach((tr, index) => {
                 items.push({
-                    i: index + 1, // no
-                    q: tr.querySelector('.row-qty').value, // qty
-                    u: tr.querySelector('.row-unit').value, // unit
-                    n: tr.querySelector('.row-nama').value.trim(), // nama
-                    h: parseInt(tr.querySelector('.row-harga').value) || 0, // harga
-                    s: (parseInt(tr.querySelector('.row-harga').value) || 0) * (parseInt(tr.querySelector('.row-qty').value) || 0) // subtotal
+                    i: index + 1,
+                    q: tr.querySelector('.row-qty').value,
+                    u: tr.querySelector('.row-unit').value,
+                    n: tr.querySelector('.row-nama').value.trim(),
+                    h: parseInt(tr.querySelector('.row-harga').value) || 0,
+                    s: (parseInt(tr.querySelector('.row-harga').value) || 0) * (parseInt(tr.querySelector('.row-qty').value) || 0)
                 });
             });
 

@@ -212,21 +212,16 @@
             koneksiTablet.send({ items: dataKeranjang, grandTotal: total });
         }
 
-        // ====================================================================
+// ====================================================================
         // FETCH DATABASE TERBARU
         // ====================================================================
         async function fetchDatabase() {
-            // PASTE LINK "PUBLISH TO WEB" CSV KAMU DI SINI BRAY!
-            // Format link harus diakhiri dengan /pub?output=csv atau format=csv
             const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQqFjmQEMLJl-UhiBkV6hDmVePKMGhWgUkwqPWiUOcv6YeBjX9-mw75au_WztJIkcbwr0D2hcDAGZrw/pub?gid=0&single=true&output=csv';
             
             let preview = document.getElementById('namaBarangPreview');
 
             try {
-                if(url === 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQqFjmQEMLJl-UhiBkV6hDmVePKMGhWgUkwqPWiUOcv6YeBjX9-mw75au_WztJIkcbwr0D2hcDAGZrw/pub?gid=0&single=true&output=csv') {
-                    throw new Error("Link CSV belum dimasukkan!");
-                }
-
+                // Pengecekan "if" yang error udah aku buang langsung sikat fetch data!
                 const response = await fetch(url);
                 if (!response.ok) throw new Error("Gagal mengakses data");
                 const csvText = await response.text();
@@ -239,7 +234,6 @@
                         let kodeJamak = cols[3] ? cols[3].replace(/['"]+/g, '').trim() : ''; 
                         let kodeTunggal = cols[4] ? cols[4].replace(/['"]+/g, '').trim() : ''; 
                         
-                        // Perbaikan Indeks Sesuai Gambar
                         let hargaG1 = parseInt(cols[6] ? cols[6].replace(/['"\.]+/g, '').trim() : '0') || 0; 
                         let hargaG2 = parseInt(cols[8] ? cols[8].replace(/['"\.]+/g, '').trim() : '0') || 0; 
                         let hargaE1 = parseInt(cols[10] ? cols[10].replace(/['"\.]+/g, '').trim() : '0') || 0; 
@@ -263,7 +257,6 @@
                 preview.innerText = "✅ Database berhasil dimuat!";
                 preview.classList.replace('text-red-600', 'text-green-600');
                 
-                // Hilangkan pesan sukses setelah 3 detik biar bersih
                 setTimeout(() => { preview.innerText = ""; }, 3000);
 
             } catch (error) {

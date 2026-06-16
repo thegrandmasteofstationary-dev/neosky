@@ -236,7 +236,7 @@
         // AMBIL DATABASE SPREADSHEET 
         // ====================================================================
         async function fetchDatabase() {
-            const url = 'https://docs.google.com/spreadsheets/d/1Mser75KizkE_jlgGcRF9UBgibCw2fbIZZRrSP5fZ2fQ/export?format=csv';
+            const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQqFjmQEMLJl-UhiBkV6hDmVePKMGhWgUkwqPWiUOcv6YeBjX9-mw75au_WztJIkcbwr0D2hcDAGZrw/pub?gid=0&single=true&output=csv';
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error("Gagal mengambil data");

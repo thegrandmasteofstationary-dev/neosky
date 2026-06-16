@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nota Digital - Toko Faster</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f3f4f6; }
+        .kertas-nota {
+            background-color: white;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 40px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            position: relative;
+            color: black;
+        }
+        
+        table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 20px;}
+        th, td { padding: 8px 10px; border: 1px solid #d1d5db; line-height: 1.4; }
+        th { background-color: #f3f4f6; font-weight: bold; text-transform: uppercase; font-size: 11px;}
+        
+        .cap-stempel {
+            position: absolute; right: 50px; top: -15px; width: 100px; height: 100px; 
+            opacity: 0.5; z-index: 1; pointer-events: none; transform: rotate(-15deg);
+        }
+        .area-tanda-tangan { position: relative; margin-top: 20px; font-size: 12px; text-align: right; width: 200px; margin-left: auto;}
+        .teks-tanda-tangan { position: relative; z-index: 2; }
+
+        @media print {
+            body { background-color: white; }
+            .kertas-nota { box-shadow: none; margin: 0; padding: 10px; max-width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="text-gray-800 font-sans pb-10">
+
+    <div class="bg-gray-800 text-white p-4 text-center shadow-md no-print mb-6 sticky top-0 z-50">
+        <h1 class="text-lg font-bold">Resi Digital Toko Faster</h1>
+        <p class="text-xs text-gray-300 mt-1">Gunakan tombol di bawah untuk mengunduh PDF.</p>
+        <button onclick="window.print()" class="mt-3 bg-[#647a46] hover:bg-green-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform transform hover:-translate-y-1 flex items-center justify-center gap-2 mx-auto">
+            🖨️ Cetak / Simpan PDF
+        </button>
+    </div>
+
+    <div id="areaNota" class="kertas-nota hidden">
+        
+        <div class="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">
+            <div>
+                <h2 class="font-bold text-2xl italic">Toko Faster</h2>
+                <p class="text-xs text-gray-600 mt-1 max-w-sm">Jl. Tugu Pahlawan No.43, Bukit Cermin, Kec. Tanjungpinang Bar., Kota Tanjung Pinang, Kepulauan Riau</p>
+            </div>
+            <img src="logo.png" alt="Logo" class="w-16 h-16 object-contain" onerror="this.style.display='none'">
+        </div>
+
+        <table class="w-auto border-none text-sm mb-6" style="border:none;">
+            <tr style="border:none;"><td class="font-bold pr-4 py-1" style="border:none;">Tanggal</td><td style="border:none;">: <span id="outTgl"></span></td></tr>
+            <tr style="border:none;"><td class="font-bold pr-4 py-1" style="border:none;">Tuan Toko</td><td style="border:none;">: <span id="outCust"></span></td></tr>
+            <tr style="border:none;"><td class="font-bold pr-4 py-1" style="border:none;">Catatan</td><td style="border:none;">: <span id="outCtt"></span></td></tr>
+        </table>
+
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-center w-[5%]">No</th>
+                    <th class="text-center w-[15%]">Banyaknya</th>
+                    <th class="w-[45%]">Nama Barang</th>
+                    <th class="text-right w-[15%]">Harga</th>
+                    <th class="text-right w-[20%]">Jumlah</th>
+                </tr>
+            </thead>
+            <tbody id="outTabel">
+                </tbody>
+        </table>
+
+        <div class="flex justify-end mt-4">
+            <div class="text-right border-t-2 border-black pt-2 min-w-[250px]">
+                <h3 class="text-lg font-black">Total: Rp <span id="outTot">0</span></h3>
+                
+                <div class="area-tanda-tangan">
+                    <img src="logo.png" class="cap-stempel" alt="Cap" onerror="this.style.display='none'">
+                    <div class="teks-tanda-tangan pt-4">
+                        <p>Hormat Kami,</p>
+                        <br><br><br>
+                        <p class="font-semibold">( ............................ )</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="areaError" class="max-w-md mx-auto mt-20 bg-white p-8 rounded-xl shadow-lg text-center hidden">
+        <span class="text-5xl block mb-4">⚠️</span>
+        <h2 class="text-xl font-bold text-gray-800 mb-2">Nota Tidak Valid</h2>
+        <p class="text-gray-600 text-sm">Tautan nota digital ini rusak atau data tidak ditemukan. Silakan hubungi kasir Toko Faster untuk meminta tautan ulang.</p>
+    </div>
+
+    <script>
+        // Menerjemahkan kode rahasia dari URL kembali jadi tabel belanjaan
+        window.onload = function() {
+            const params = new URLSearchParams(window.location.search);
+            const dataHash = params.get('data');
+
+            if (!dataHash) {
+                document.getElementById('areaError').classList.remove('hidden');
+                return;
+            }
+
+            try {
+                // Decode Base64 ke JSON
+                const decodedData = JSON.parse(decodeURIComponent(escape(atob(dataHash))));
+                
+                document.getElementById('outTgl').innerText = decodedData.tgl;
+                document.getElementById('outCust').innerText = decodedData.cust;
+                document.getElementById('outCtt').innerText = decodedData.ctt;
+                document.getElementById('outTot').innerText = decodedData.tot;
+
+                let htmlBaris = '';
+                decodedData.items.forEach(item => {
+                    htmlBaris += `
+                    <tr>
+                        <td class="text-center">${item.no}</td>
+                        <td class="text-center font-semibold">${item.qty} ${item.unit}</td>
+                        <td class="font-medium">${item.nama}</td>
+                        <td class="text-right">${item.harga.toLocaleString('id-ID')}</td>
+                        <td class="text-right font-bold">${item.subtotal.toLocaleString('id-ID')}</td>
+                    </tr>`;
+                });
+
+                document.getElementById('outTabel').innerHTML = htmlBaris;
+                document.getElementById('areaNota').classList.remove('hidden');
+
+            } catch (e) {
+                console.error("Gagal membaca nota:", e);
+                document.getElementById('areaError').classList.remove('hidden');
+            }
+        };
+    </script>
+</body>
+</html>

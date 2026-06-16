@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Receipt POS - Kasir</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        /* ========================================================
+           PENGATURAN KHUSUS PRINTER
+           ======================================================== */
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; } 
+            body { background-color: white; color: black; -webkit-print-color-adjust: exact; background-image: none !important; }
+            .screen-area { display: none !important; }
+            #printLayout { display: block !important; width: 100%; }
+            .print-page { width: 100%; height: 100%; page-break-after: always; page-break-inside: avoid; display: flex; gap: 4%; }
+            .print-page:last-child { page-break-after: auto; }
+            table { border-collapse: collapse; width: 100%; font-size: 11px; }
+            th, td { padding: 4px 6px !important; line-height: 1.2 !important; border: 1px solid black !important; }
+            th { background-color: #f2f2f2 !important; }
+            h2 { margin-bottom: 2px !important; font-size: 18px !important; }
+            .address-text { font-size: 10px; margin-bottom: 8px; font-style: italic; }
+            .col-kanan { border-left: 1px dashed #999; padding-left: 4%; }
+            .area-tanda-tangan { position: relative; margin-top: 15px; font-size: 11px; text-align: right; display: block; width: 100%; min-height: 80px; }
+            .cap-stempel { position: absolute; right: 45px; top: -10px; width: 85px; height: 85px; opacity: 0.5; z-index: 1; pointer-events: none; transform: rotate(-15deg); }
+            .teks-tanda-tangan { position: relative; z-index: 2; padding-right: 10px; }
+        }
+
+        /* Styling Scrollbar biar rapi */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans flex flex-col relative pb-16">
+
+    <!-- HEADER / NAVBAR -->
+    <nav class="bg-gray-800 text-white py-3 px-6 flex justify-between items-center shadow-md screen-area z-20 relative">
+        <div class="flex items-center gap-3">
+            <img src="logo.png" alt="Logo" class="w-10 h-10 bg-white rounded p-1" onerror="this.style.display='none'">
+            <span class="font-bold tracking-wider text-lg hidden sm:block">TOKO FASTER</span>
+        </div>
+        <div class="flex gap-6 font-semibold text-sm">
+            <a href="#" class="text-gray-300 hover:text-white transition-colors">Home</a>
+            <a href="#" class="text-blue-400 border-b-2 border-blue-400 pb-1">Scanner</a>
+            <a href="#" class="text-gray-300 hover:text-white transition-colors">Inspect</a>
+        </div>
+    </nav>
+
+    <!-- STATUS KONEKSI TABLET -->
+    <div id="statusTablet" class="screen-area text-center py-1 text-xs font-bold bg-red-600 text-white shadow-sm z-10 transition-colors">
+        🔴 Tablet Pelanggan Offline
+    </div>
+
+    <!-- AREA LAYAR UTAMA -->
+    <div class="screen-area p-4 sm:p-6 flex-1 flex justify-center items-start">
+        <div class="max-w-[1400px] w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- KIRI: KARTU SCANNER -->
+            <div class="lg:col-span-4 bg-white rounded-lg p-6 shadow-sm border border-gray-200 flex flex-col gap-5 h-fit sticky top-6">
+                <h2 class="text-xl font-bold mb-1 border-b border-gray-200 pb-3">Kasir / POS Scanner</h2>
+                
+                <div>
+                    <label class="block text-sm font-semibold mb-1 text-gray-700">Scan Barcode / Nama Barang</label>
+                    <div class="relative">
+                        <input type="text" id="barcodeInput" autocomplete="off" class="w-full border border-gray-300 rounded bg-gray-50 p-2.5 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all outline-none" placeholder="Menunggu database..." disabled autofocus>
+                        <ul id="searchDropdown" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg hidden max-h-60 overflow-y-auto mt-1 text-sm"></ul>
+                    </div>
+                    <p id="namaBarangPreview" class="text-xs text-green-600 font-bold mt-1 h-4"></p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1 text-gray-700">QTY</label>
+                        <input type="number" id="qtyInput" class="w-full border border-gray-300 rounded bg-gray-50 p-2.5 text-base focus:ring-2 focus:ring-blue-500 outline-none text-center focus:bg-white transition-all" value="1" min="1" disabled>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1 text-gray-700">Satuan</label>
+                        <select id="unitInput" class="w-full border border-gray-300 rounded bg-gray-50 p-2.5 text-base focus:ring-2 focus:ring-blue-500 outline-none focus:bg-white transition-all pr-8" disabled>
+                            <option value="pcs">Pcs</option>
+                            <option value="lusin">Lusin</option>
+                            <option value="pak">Pak</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-1 text-gray-700">Harga Jual</label>
+                    <div class="flex flex-col gap-2">
+                        <select id="hargaSelect" class="w-full border border-gray-300 rounded bg-gray-100 p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all pr-8" disabled>
+                            <option value="">Pilih harga otomatis...</option>
+                        </select>
+                        <input type="number" id="customHargaInput" class="w-full border border-gray-300 rounded bg-gray-50 p-2.5 text-base font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none focus:bg-white transition-all" placeholder="Harga manual..." disabled>
+                    </div>
+                </div>
+
+                <button id="btnTambah" class="bg-blue-600 text-white text-base px-4 py-3 rounded shadow hover:bg-blue-700 w-full font-bold mt-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors" disabled>
+                    Tambahkan ke Struk
+                </button>
+            </div>
+
+            <!-- KANAN: KARTU STRUK / TABEL -->
+            <div class="lg:col-span-8 bg-white rounded-lg p-6 shadow-sm border border-gray-200 flex flex-col min-h-[600px]">
+                
+                <!-- Info Nota -->
+                <div class="mb-6 flex flex-col gap-2 text-sm text-gray-800">
+                    <div class="flex items-center gap-4">
+                        <span class="w-32 font-semibold">Tanggal:</span> 
+                        <span id="displayTanggal" class="text-gray-600"></span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="w-32 font-semibold">Tuan Toko:</span> 
+                        <input type="text" id="inputTuanToko" class="border-b border-gray-300 focus:border-blue-500 outline-none flex-1 py-1 bg-transparent" placeholder="Ketik nama pelanggan...">
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="w-32 font-semibold">Keterangan:</span> 
+                        <input type="text" id="inputCatatan" class="border-b border-gray-300 focus:border-blue-500 outline-none flex-1 py-1 bg-transparent" placeholder="Ketik catatan tambahan...">
+                    </div>
+                    <!-- INPUT OTOMATISASI WHATSAPP -->
+                    <div class="flex items-center gap-4 mt-1">
+                        <span class="w-32 font-semibold flex items-center gap-1 text-green-700">📱 No. WA:</span> 
+                        <input type="text" id="inputNoWA" class="border-b border-green-300 focus:border-green-600 outline-none flex-1 py-1 font-semibold bg-transparent text-green-800 placeholder-green-300" placeholder="Contoh: 08123456789...">
+                    </div>
+                </div>
+
+                <!-- Notifikasi Redundansi -->
+                <div id="infoRedundansi" class="hidden bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 p-3 rounded shadow-sm mb-4 text-xs">
+                    <strong class="font-bold">⚠️ Terdapat Redundansi Baris:</strong> <span id="teksRedundansi"></span>
+                </div>
+
+                <!-- Box Tabel -->
+                <div class="flex-1 flex flex-col border border-gray-200 rounded">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[600px]">
+                            <thead class="bg-gray-100">
+                                <tr class="border-b border-gray-300 text-xs uppercase tracking-wider text-gray-600">
+                                    <th class="py-3 font-semibold text-center w-[5%]">No</th>
+                                    <th class="py-3 font-semibold pl-2 w-[15%]">Qty</th>
+                                    <th class="py-3 font-semibold pl-2 w-[40%]">Nama Barang</th>
+                                    <th class="py-3 font-semibold text-right pr-2 w-[15%]">Harga</th>
+                                    <th class="py-3 font-semibold text-right pr-2 w-[15%]">Subtotal</th>
+                                    <th class="py-3 font-semibold text-center w-[10%]">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="listBarang" class="text-sm">
+                                <!-- Baris barang masuk sini -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="bg-gray-50 border-t border-gray-200 mt-auto p-4 flex flex-col items-end rounded-b">
+                        <h3 class="text-2xl font-bold text-gray-800">Total: Rp <span id="totalAkhir">0</span></h3>
+                    </div>
+                </div>
+
+                <!-- AKSI TOMBOL BAWAH (Cetak & Kirim WA Berdampingan) -->
+                <div class="mt-6 flex justify-end gap-3 pb-2">
+                    <button onclick="kirimWhatsApp()" class="bg-[#25D366] text-white px-6 py-2.5 rounded shadow hover:bg-green-600 font-semibold text-sm transition-colors flex items-center gap-2">
+                        💬 Kirim WA
+                    </button>
+                    <button onclick="cetakStruk()" class="bg-gray-800 text-white px-6 py-2.5 rounded shadow hover:bg-gray-900 font-semibold text-sm transition-colors">
+                        🖨️ Cetak Struk
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER COPYRIGHT BADGE -->
+    <div class="screen-area fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none">
+        <div class="bg-gray-800 text-gray-300 px-4 py-1.5 rounded-full text-xs tracking-wider opacity-90 shadow-sm">
+            TGOS HELPER © 2026
+        </div>
+    </div>
+
+    <!-- AREA KHUSUS PRINT -->
+    <div id="printLayout" class="hidden print:block w-full"></div>
+
+    <script>
+        document.getElementById('displayTanggal').innerText = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+        let database = {}; 
+        let listProdukUnik = []; 
+        let currentBarang = null; 
+
+        const NAMA_TOKO = "Toko Faster";
+        const ALAMAT_TOKO = "Jl. Tugu Pahlawan No.43, Bukit Cermin, Kec. Tanjungpinang Bar., Kota Tanjung Pinang, Kepulauan Riau"; 
+        const URL_STEMPEL = "logo.png"; 
+
+        const preloader = new Image(); preloader.src = URL_STEMPEL;
+
+        // ====================================================================
+        // SISTEM KOMUNIKASI P2P KE TABLET PELANGGAN
+        // ====================================================================
+        const peer = new Peer('kasir-tokofaster-01');
+        let koneksiTablet = null;
+
+        peer.on('connection', (conn) => {
+            if (koneksiTablet && koneksiTablet.open) {
+                setTimeout(() => {
+                    conn.send({ error: 'ALREADY_CONNECTED' });
+                    setTimeout(() => conn.close(), 500);
+                }, 500);
+                return;
+            }
+            koneksiTablet = conn;
+            let statusBadge = document.getElementById('statusTablet');
+            statusBadge.innerText = "🟢 Tablet Pelanggan Online";
+            statusBadge.className = "screen-area text-center py-1 text-xs font-bold bg-green-600 text-white shadow-sm z-10 transition-colors";
+            broadcastKeTablet();
+            conn.on('close', () => {
+                koneksiTablet = null;
+                statusBadge.innerText = "🔴 Tablet Pelanggan Offline";
+                statusBadge.className = "screen-area text-center py-1 text-xs font-bold bg-red-600 text-white shadow-sm z-10 transition-colors";
+            });
+        });
+
+        function broadcastKeTablet() {
+            if (!koneksiTablet || !koneksiTablet.open) return; 
+            let dataKeranjang = [];
+            document.querySelectorAll('.baris-barang').forEach((tr, index) => {
+                let qty = parseInt(tr.querySelector('.row-qty').value) || 0;
+                let unit = tr.querySelector('.row-unit').value;
+                let nama = tr.querySelector('.row-nama').value;
+                let harga = parseInt(tr.querySelector('.row-harga').value) || 0;
+                dataKeranjang.push({ no: index + 1, qty, unit, nama, harga, subtotal: harga*qty });
+            });
+            let total = document.getElementById('totalAkhir').innerText;
+            koneksiTablet.send({ items: dataKeranjang, grandTotal: total });
+        }
+
+        // ====================================================================
+        // AMBIL DATABASE SPREADSHEET 
+        // ====================================================================
+        async function fetchDatabase() {
+            const url = 'https://docs.google.com/spreadsheets/d/1Mser75KizkE_jlgGcRF9UBgibCw2fbIZZRrSP5fZ2fQ/export?format=csv';
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Gagal mengambil data");
+                const csvText = await response.text();
+                const rows = csvText.split('\n');
+                
+                for (let i = 1; i < rows.length; i++) {
+                    const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    if (cols.length >= 14) { 
+                        let nama = cols[2].replace(/['"]+/g, '').trim(); 
+                        let kodeJamak = cols[3].replace(/['"]+/g, '').trim(); 
+                        let kodeTunggal = cols[4].replace(/['"]+/g, '').trim(); 
+                        
+                        let hargaG1 = parseInt(cols[6].replace(/['"\.]+/g, '').trim()) || 0; 
+                        let hargaG2 = parseInt(cols[9].replace(/['"\.]+/g, '').trim()) || 0; 
+                        let hargaE1 = parseInt(cols[11].replace(/['"\.]+/g, '').trim()) || 0; 
+                        let hargaE2 = parseInt(cols[13].replace(/['"\.]+/g, '').trim()) || 0; 
+                        
+                        let baseData = { nama, g1: hargaG1, g2: hargaG2, e1: hargaE1, e2: hargaE2 };
+                        
+                        if (kodeJamak !== "") database[kodeJamak] = { ...baseData, tipeBarcode: 'jamak' };
+                        if (kodeTunggal !== "") database[kodeTunggal] = { ...baseData, tipeBarcode: 'tunggal' };
+                        if (nama !== "" && !listProdukUnik.some(p => p.nama === nama)) {
+                            listProdukUnik.push({ ...baseData, tipeBarcode: 'tunggal' });
+                        }
+                    }
+                }
+                let inputScanner = document.getElementById('barcodeInput');
+                inputScanner.disabled = false; inputScanner.placeholder = "Siap! Ketik / Scan..."; inputScanner.focus();
+            } catch (error) {
+                document.getElementById('namaBarangPreview').innerText = "Gagal memuat database!";
+            }
+        }
+        window.onload = fetchDatabase;
+
+        // ====================================================================
+        // AUTOMATED WHATSAPP RECEIPT ENGINE 
+        // ====================================================================
+        function kirimWhatsApp() {
+            let noWA = document.getElementById('inputNoWA').value.trim();
+            if (!noWA) {
+                alert("Masukkan nomor WhatsApp pelanggan dulu!");
+                document.getElementById('inputNoWA').focus();
+                return;
+            }
+
+            if (noWA.startsWith('0')) {
+                noWA = '62' + noWA.slice(1);
+            } else if (noWA.startsWith('+')) {
+                noWA = noWA.slice(1);
+            }
+
+            let tanggal = document.getElementById('displayTanggal').innerText;
+            let tuanToko = document.getElementById('inputTuanToko').value || '-';
+            let catatan = document.getElementById('inputCatatan').value || '-';
+            let grandTotal = document.getElementById('totalAkhir').innerText;
+
+            let teks = `🛒 *NOTA DIGITAL - ${NAMA_TOKO.toUpperCase()}*\n`;
+            teks += `📍 _${ALAMAT_TOKO}_\n`;
+            teks += `--------------------------------------------------\n`;
+            teks += `📅 *Tanggal :* ${tanggal}\n`;
+            teks += `👤 *Pelanggan :* ${tuanToko}\n`;
+            teks += `📝 *Catatan :* ${catatan}\n`;
+            teks += `--------------------------------------------------\n\n`;
+
+            let barisBelanjaan = document.querySelectorAll('.baris-barang');
+            if (barisBelanjaan.length === 0) {
+                alert("Keranjang masih kosong!");
+                return;
+            }
+
+            barisBelanjaan.forEach((tr, index) => {
+                let qty = tr.querySelector('.row-qty').value;
+                let unit = tr.querySelector('.row-unit').value;
+                let nama = tr.querySelector('.row-nama').value.trim();
+                let harga = parseInt(tr.querySelector('.row-harga').value) || 0;
+                let subtotal = harga * qty;
+                
+                teks += `${index + 1}. *${nama}*\n`;
+                teks += `    ${qty} ${unit} x Rp ${harga.toLocaleString('id-ID')} = *Rp ${subtotal.toLocaleString('id-ID')}*\n`;
+            });
+
+            teks += `\n--------------------------------------------------\n`;
+            teks += `💰 *TOTAL AKHIR : Rp ${grandTotal}*\n`;
+            teks += `--------------------------------------------------\n\n`;
+            teks += `_Terima kasih telah berbelanja di Toko Faster!_ 🙏`;
+
+            let urlWA = `https://api.whatsapp.com/send?phone=${noWA}&text=${encodeURIComponent(teks)}`;
+            window.open(urlWA, '_blank');
+        }
+
+        // ====================================================================
+        // INPUT HANDLERS & LOGIKA KASIR
+        // ====================================================================
+        const inputHibrida = document.getElementById('barcodeInput');
+        const dropdownSearch = document.getElementById('searchDropdown');
+
+        inputHibrida.addEventListener('input', function() {
+            const keyword = this.value.toLowerCase().trim();
+            dropdownSearch.innerHTML = '';
+            if (keyword.length < 2) { dropdownSearch.classList.add('hidden'); return; }
+            const hasilSearch = listProdukUnik.filter(p => p.nama.toLowerCase().includes(keyword));
+            if (hasilSearch.length > 0) {
+                dropdownSearch.classList.remove('hidden');
+                hasilSearch.forEach(prod => {
+                    const li = document.createElement('li');
+                    li.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-0';
+                    li.textContent = prod.nama;
+                    li.onclick = () => aktifkanUIBarang(prod);
+                    dropdownSearch.appendChild(li);
+                });
+            } else { dropdownSearch.classList.add('hidden'); }
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target !== inputHibrida && e.target !== dropdownSearch) dropdownSearch.classList.add('hidden');
+        });
+
+        inputHibrida.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); dropdownSearch.classList.add('hidden');
+                let barcode = this.value.trim();
+                if (barcode === "") return;
+                if (database[barcode]) aktifkanUIBarang(database[barcode]);
+                else document.getElementById('namaBarangPreview').innerText = "❌ Barcode tidak ditemukan!";
+            }
+        });
+
+        function aktifkanUIBarang(dataBarang) {
+            currentBarang = dataBarang;
+            inputHibrida.value = currentBarang.nama; dropdownSearch.classList.add('hidden');
+            document.getElementById('namaBarangPreview').innerText = "Terdeteksi: " + currentBarang.nama;
+            document.getElementById('qtyInput').disabled = false; document.getElementById('unitInput').disabled = false;
+            let hargaSelect = document.getElementById('hargaSelect'); let customHargaInput = document.getElementById('customHargaInput');
+            hargaSelect.disabled = false; hargaSelect.classList.remove('bg-gray-100'); hargaSelect.classList.add('bg-white');
+            customHargaInput.disabled = false; document.getElementById('btnTambah').disabled = false;
+
+            let eceranHTML = `<option value="${currentBarang.e2}">Eceran 2 (Rp ${currentBarang.e2.toLocaleString('id-ID')})</option><option value="${currentBarang.e1}">Eceran 1 (Rp ${currentBarang.e1.toLocaleString('id-ID')})</option>`;
+            let grosirHTML = `<option value="${currentBarang.g2}">Grosir 2 (Rp ${currentBarang.g2.toLocaleString('id-ID')})</option><option value="${currentBarang.g1}">Grosir 1 (Rp ${currentBarang.g1.toLocaleString('id-ID')})</option>`;
+
+            if (currentBarang.tipeBarcode === 'jamak') hargaSelect.innerHTML = grosirHTML + eceranHTML;
+            else hargaSelect.innerHTML = eceranHTML + grosirHTML;
+            
+            customHargaInput.value = hargaSelect.value;
+            hargaSelect.onchange = function() { customHargaInput.value = this.value; };
+            document.getElementById('qtyInput').focus(); document.getElementById('qtyInput').select();
+        }
+
+        ['qtyInput', 'unitInput', 'hargaSelect', 'customHargaInput'].forEach(id => {
+            document.getElementById(id).addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); prosesTambahKeList(); }
+            });
+        });
+        document.getElementById('btnTambah').addEventListener('click', prosesTambahKeList);
+
+        function prosesTambahKeList() {
+            if (!currentBarang) return;
+            let qty = parseInt(document.getElementById('qtyInput').value) || 1;
+            let unit = document.getElementById('unitInput').value;
+            let hargaSatuan = parseInt(document.getElementById('customHargaInput').value) || 0;
+            let tbody = document.getElementById('listBarang');
+            let tr = document.createElement('tr');
+            
+            tr.className = "border-b border-gray-200 baris-barang hover:bg-blue-50 transition-colors";
+            tr.innerHTML = `
+                <td class="py-2 text-center font-medium align-middle"><span class="nomor-urut"></span></td>
+                <td class="py-2 px-2 align-middle">
+                    <div class="flex gap-1">
+                        <input type="number" class="w-16 border border-gray-300 rounded p-1.5 text-sm row-qty focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-center" value="${qty}" min="1">
+                        <select class="border border-gray-300 rounded p-1.5 text-sm row-unit focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                            <option value="pcs" ${unit==='pcs'?'selected':''}>Pcs</option><option value="lusin" ${unit==='lusin'?'selected':''}>Lsn</option><option value="pak" ${unit==='pak'?'selected':''}>Pak</option>
+                        </select>
+                    </div>
+                </td>
+                <td class="py-2 px-2 align-middle">
+                    <textarea class="w-full border border-gray-300 rounded p-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 row-nama resize-none h-9 leading-tight overflow-hidden">${currentBarang.nama}</textarea>
+                </td>
+                <td class="py-2 px-2 align-middle">
+                    <input type="number" class="w-full border border-gray-300 rounded p-1.5 text-sm row-harga focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-right" value="${hargaSatuan}">
+                </td>
+                <td class="py-2 px-2 text-right align-middle">
+                    <span class="subtotal-teks font-medium block whitespace-nowrap">Rp 0</span>
+                </td>
+                <td class="py-2 text-center align-middle">
+                    <button class="text-gray-400 hover:text-red-500 font-bold text-lg btn-hapus transition-colors" title="Hapus">✕</button>
+                </td>
+            `;
+            
+            let inputs = tr.querySelectorAll('.row-qty, .row-unit, .row-harga, .row-nama');
+            inputs.forEach(input => {
+                input.addEventListener('input', updateBaris); input.addEventListener('change', updateBaris);
+            });
+            tr.querySelector('.btn-hapus').addEventListener('click', function() {
+                tr.remove(); hitungTotalSemua(); updateNomorUrut(); cekSemuaRedundansi(); 
+            });
+            function updateBaris() {
+                let rQty = parseInt(tr.querySelector('.row-qty').value) || 0;
+                let rHarga = parseInt(tr.querySelector('.row-harga').value) || 0;
+                let rSubtotal = rHarga * rQty;
+                tr.querySelector('.subtotal-teks').innerText = 'Rp ' + rSubtotal.toLocaleString('id-ID');
+                hitungTotalSemua(); cekSemuaRedundansi();
+            }
+            tbody.appendChild(tr); updateBaris(); updateNomorUrut(); cekSemuaRedundansi(); resetAreaInput();
+        }
+
+        function cekSemuaRedundansi() {
+            let listNama = Array.from(document.querySelectorAll('.row-nama')).map(ta => ta.value.trim());
+            let counts = {};
+            listNama.forEach(nama => { counts[nama] = (counts[nama] || 0) + 1; });
+            let redundanItems = [];
+            for (let nama in counts) { if (counts[nama] > 1 && nama !== "") redundanItems.push(`${nama} (${counts[nama]} baris)`); }
+            let infoBar = document.getElementById('infoRedundansi');
+            if (redundanItems.length > 0) { document.getElementById('teksRedundansi').innerText = redundanItems.join(', '); infoBar.classList.remove('hidden'); } 
+            else { infoBar.classList.add('hidden'); }
+        }
+
+        function resetAreaInput() {
+            currentBarang = null;
+            let inp = document.getElementById('barcodeInput');
+            inp.value = ''; inp.placeholder = "Siap! Ketik / Scan..."; document.getElementById('searchDropdown').classList.add('hidden');
+            document.getElementById('namaBarangPreview').innerText = ''; document.getElementById('qtyInput').value = '1'; document.getElementById('qtyInput').disabled = true;
+            document.getElementById('unitInput').value = 'pcs'; document.getElementById('unitInput').disabled = true;
+            let hargaSelect = document.getElementById('hargaSelect');
+            hargaSelect.innerHTML = '<option value="">Pilih harga otomatis...</option>'; hargaSelect.disabled = true; hargaSelect.classList.remove('bg-white'); hargaSelect.classList.add('bg-gray-100');
+            let customHargaInput = document.getElementById('customHargaInput');
+            customHargaInput.value = ''; customHargaInput.disabled = true; document.getElementById('btnTambah').disabled = true;
+            inp.focus();
+        }
+
+        function updateNomorUrut() {
+            document.querySelectorAll('.baris-barang').forEach((tr, index) => { tr.querySelector('.nomor-urut').innerText = index + 1; });
+        }
+
+        function hitungTotalSemua() {
+            let grandTotal = 0;
+            document.querySelectorAll('.baris-barang').forEach(tr => {
+                let rQty = parseInt(tr.querySelector('.row-qty').value) || 0;
+                let rHarga = parseInt(tr.querySelector('.row-harga').value) || 0;
+                grandTotal += (rQty * rHarga);
+            });
+            document.getElementById('totalAkhir').innerText = grandTotal.toLocaleString('id-ID');
+            broadcastKeTablet();
+        }
+
+        function cetakStruk() {
+            let printData = [];
+            document.querySelectorAll('.baris-barang').forEach((tr, index) => {
+                let qty = parseInt(tr.querySelector('.row-qty').value) || 0; let unit = tr.querySelector('.row-unit').value; let nama = tr.querySelector('.row-nama').value;
+                let harga = parseInt(tr.querySelector('.row-harga').value) || 0; let subtotal = harga * qty;
+                printData.push({ no: index + 1, qty, unit, nama, harga, subtotal });
+            });
+
+            let tanggal = document.getElementById('displayTanggal').innerText; let tuanToko = document.getElementById('inputTuanToko').value || '-';
+            let catatan = document.getElementById('inputCatatan').value || '-'; let grandTotal = document.getElementById('totalAkhir').innerText;
+
+            let html = ''; let totalItems = printData.length; let maxPerColumn = 25; 
+            if (totalItems === 0) html = '<p style="text-align:center; padding-top:40px; font-size: 20px;">Struk kosong.</p>';
+            let capStempelHTML = `<img src="${URL_STEMPEL}" class="cap-stempel" alt="Cap Resmi">`;
+            let headerHTML = `<div class="mb-3"><h2 class="font-bold italic">${NAMA_TOKO}</h2><p class="address-text">${ALAMAT_TOKO}</p><table style="width: auto !important; font-size: 11px; border: none !important;"><tr style="border: none !important;"><td style="border: none !important;" class="font-bold !pr-2 !pb-0 !pl-0 !pt-0">Tanggal</td><td style="border: none !important;" class="!p-0">: ${tanggal}</td></tr><tr style="border: none !important;"><td style="border: none !important;" class="font-bold !pr-2 !pb-0 !pl-0 !pt-0">Tuan Toko</td><td style="border: none !important;" class="!p-0">: ${tuanToko}</td></tr><tr style="border: none !important;"><td style="border: none !important;" class="font-bold !pr-2 !pb-0 !pl-0 !pt-0">Catatan</td><td style="border: none !important;" class="!p-0">: ${catatan}</td></tr></table></div>`;
+            let totalHTML = `<div style="display: flex; justify-content: flex-end; margin-top: 10px;"><div style="text-align: right; width: 200px;"><h3 style="font-size: 14px; font-weight: bold; margin:0; border-top: 2px solid black; padding-top: 4px;">Total: Rp ${grandTotal}</h3><div class="area-tanda-tangan">${capStempelHTML}<div class="teks-tanda-tangan"><p>Hormat Kami,</p><br><br><p>( ............................ )</p></div></div></div></div>`;
+
+            if (totalItems <= maxPerColumn && totalItems > 0) {
+                let tableHTML = renderPrintTable(printData); let fullReceipt = `<div style="display:flex; flex-direction:column; height:100%;">${headerHTML}<div style="flex-grow:1;">${tableHTML}</div>${totalHTML}</div>`;
+                html = `<div class="print-page"><div style="width: 48%;">${fullReceipt}</div><div class="col-kanan" style="width: 48%;">${fullReceipt}</div></div>`;
+            } else if (totalItems > maxPerColumn) {
+                for (let i = 0; i < totalItems; i += 50) { 
+                    let chunk = printData.slice(i, i + 50); let col1 = chunk.slice(0, 25); let col2 = chunk.slice(25, 50);
+                    let isFirstPage = (i === 0); let isLastPage = (i + 50 >= totalItems);
+                    html += `<div class="print-page"><div style="width: 48%; display:flex; flex-direction:column;">`;
+                    if (isFirstPage) html += headerHTML; 
+                    html += `<div style="flex-grow:1;">${renderPrintTable(col1)}</div>`;
+                    if (isLastPage && col2.length === 0) html += totalHTML; 
+                    html += `</div><div class="col-kanan" style="width: 48%; display:flex; flex-direction:column;">`;
+                    if (col2.length > 0) { html += `<div style="flex-grow:1;">${renderPrintTable(col2)}</div>`; if (isLastPage) html += totalHTML; }
+                    html += `</div></div>`; 
+                }
+            }
+            
+            const targetContainer = document.getElementById('printLayout'); targetContainer.innerHTML = html;
+            const imagesInPrint = targetContainer.querySelectorAll('img');
+            const imagePromises = Array.from(imagesInPrint).map(img => {
+                if (img.complete) return Promise.resolve(); 
+                return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+            });
+            Promise.all(imagePromises).then(() => { setTimeout(() => { window.print(); }, 100); });
+        }
+
+        function renderPrintTable(items) {
+            if(items.length === 0) return '';
+            let t = `<table><thead><tr><th style="width: 10%;">No</th><th style="width: 15%;">Qty</th><th style="width: 40%;">Nama Barang</th><th style="width: 15%;">Harga</th><th style="width: 20%;">Jumlah</th></tr></thead><tbody>`;
+            items.forEach(item => { t += `<tr><td style="text-align: center;">${item.no}</td><td style="text-align: center;">${item.qty} ${item.unit}</td><td>${item.nama}</td><td style="text-align: right;">${item.harga.toLocaleString('id-ID')}</td><td style="text-align: right;">${item.subtotal.toLocaleString('id-ID')}</td></tr>`; });
+            t += `</tbody></table>`; return t;
+        }
+    </script>
+</body>
+</html>

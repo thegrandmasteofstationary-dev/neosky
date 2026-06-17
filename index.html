@@ -6,6 +6,9 @@
     <title>Digital Receipt POS - Kasir</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
     <style>
         @media print {
             @page { size: A4 landscape; margin: 10mm; } 
@@ -309,7 +312,7 @@
                 items: items
             };
 
-            let kodeRahasia = btoa(unescape(encodeURIComponent(JSON.stringify(dataNota))));
+            let kodeRahasia = LZString.compressToEncodedURIComponent(JSON.stringify(dataNota));
             let namaAlias = tuanToko.replace(/\s+/g, '-') + "-" + tanggalStr.split(' ')[0] + "-" + tanggalStr.split(' ')[1];
 
             let currentUrl = window.location.href.split('?')[0].replace(/index\.html$/, '');
